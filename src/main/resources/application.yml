@@ -55,3 +55,9 @@ ai:
 jwt:
   secret: tianyu-ai-admin-secret-key-2024
   expire-time: 86400000  # 24小时(毫秒)
+
+# 天气预警聚合服务配置
+weather:
+  api:
+    host: m56k5qd29w.re.qweatherapi.com
+    api-key: cc7c368dba84425bb9a2b78949fe26d5
