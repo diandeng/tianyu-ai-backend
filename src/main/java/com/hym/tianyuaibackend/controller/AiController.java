@@ -40,15 +40,18 @@ public class AiController {
         // 如果 userId 为 null，Service 层会处理并返回一个带错误的 emitter
         if (userId == null) {
             // 即使未登录，也调用服务，让服务内部统一处理未登录逻辑
-            return messageService.handleStreamChat(null, content, imageUrl, true);
+            return messageService.handleStreamChat(null, content, imageUrl, true, null);
         }
 
         // 1. 获取或创建会话ID
         Long finalSessionId = sessionService.createOrGetSession(userId, sessionId);
 
-        // 2. 如果是新创建的会话，通过 SSE 事件把新 ID 发给前端
+        // 2. 如果是新会话，先设置占位标题，AI 生成后通过 SSE 覆盖
         boolean isNewSession = (sessionId == null || sessionId == 0L);
-        SseEmitter emitter = messageService.handleStreamChat(finalSessionId, content, imageUrl, isNewSession);
+        String sessionTitle = isNewSession ? "新对话" : null;
+
+        // 3. 流式对话，SSE 事件中带上会话信息（ID + 标题）
+        SseEmitter emitter = messageService.handleStreamChat(finalSessionId, content, imageUrl, isNewSession, sessionTitle);
 
         return emitter;
     }

@@ -118,6 +118,12 @@ public class SysUser implements Serializable {
     private Integer fansCount;
 
     /**
+     * 订阅消息剩余次数
+     */
+    @TableField("subscribe_count")
+    private Integer subscribeCount;
+
+    /**
      * 用户设置 (JSON格式)
      */
     @TableField(value = "settings", typeHandler = JacksonTypeHandler.class)

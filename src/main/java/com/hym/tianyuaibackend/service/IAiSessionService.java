@@ -3,6 +3,8 @@ package com.hym.tianyuaibackend.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.hym.tianyuaibackend.entity.AiSession;
 
+import java.util.List;
+
 /**
  * <p>
  * AI会话表 服务类
@@ -23,4 +25,27 @@ public interface IAiSessionService extends IService<AiSession> {
      * @return 现有或新创建的会话ID
      */
     Long createOrGetSession(Long userId, Long sessionId);
+
+    /**
+     * 更新会话标题
+     *
+     * @param sessionId 会话ID
+     * @param title     新标题
+     */
+    void updateTitle(Long sessionId, String title);
+
+    /**
+     * 获取用户的所有会话列表，按更新时间降序排列
+     *
+     * @param userId 用户ID
+     * @return 会话列表
+     */
+    List<AiSession> getUserSessions(Long userId);
+
+    /**
+     * 删除用户的所有会话（逻辑删除）
+     *
+     * @param userId 用户ID
+     */
+    void deleteUserSessions(Long userId);
 }

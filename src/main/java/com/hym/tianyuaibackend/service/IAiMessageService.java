@@ -21,7 +21,8 @@ public interface IAiMessageService extends IService<AiMessage> {
      * @param content   用户输入的文本
      * @param imageUrl  用户上传的图片URL (可选)
      * @param isNewSession 是否是新创建的会话
+     * @param sessionTitle 新会话的标题（isNewSession=true 时有效）
      * @return SseEmitter 用于流式输出
      */
-    SseEmitter handleStreamChat(Long sessionId, String content, String imageUrl, boolean isNewSession);
+    SseEmitter handleStreamChat(Long sessionId, String content, String imageUrl, boolean isNewSession, String sessionTitle);
 }

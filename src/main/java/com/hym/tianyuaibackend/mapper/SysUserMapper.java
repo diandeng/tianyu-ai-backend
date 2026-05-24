@@ -2,6 +2,8 @@ package com.hym.tianyuaibackend.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.hym.tianyuaibackend.entity.SysUser;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * <p>
@@ -13,4 +15,6 @@ import com.hym.tianyuaibackend.entity.SysUser;
  */
 public interface SysUserMapper extends BaseMapper<SysUser> {
 
+    @Select("SELECT * FROM sys_user WHERE openid = #{openid} LIMIT 1")
+    SysUser selectByOpenid(@Param("openid") String openid);
 }

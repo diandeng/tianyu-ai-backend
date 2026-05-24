@@ -23,7 +23,10 @@ public class WebConfig implements WebMvcConfigurer {
                         "/user/info",
                         "/user/update",
                         "/user/logout",
+                        "/user/subscribe",
                         "/ai/chat/stream",
+                        "/aiSession/list",
+                        "/aiSession/clear-all",
                         "/news/my-favorites",
                         "/news/like",
                         "/news/favorite",
@@ -51,7 +54,10 @@ public class WebConfig implements WebMvcConfigurer {
                         "/admin/refresh",
                         "/admin/ai/**",
                         "/admin/news/**",
-                        "/admin/post/**"
+                        "/admin/post/**",
+                        "/admin/user/**",
+                        "/admin/alert/**",
+                        "/alert/**"
                 );
     }
 }

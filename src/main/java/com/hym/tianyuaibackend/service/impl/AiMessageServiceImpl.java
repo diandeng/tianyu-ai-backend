@@ -14,6 +14,7 @@ import com.hym.tianyuaibackend.mapper.AiMessageMapper;
 import com.hym.tianyuaibackend.mapper.SysUserMapper;
 import com.hym.tianyuaibackend.model.dto.PythonAiResponse;
 import com.hym.tianyuaibackend.service.IAiMessageService;
+import com.hym.tianyuaibackend.service.IAiSessionService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -72,6 +73,9 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
     private StringRedisTemplate redisTemplate;
 
     @Autowired
+    private IAiSessionService sessionService;
+
+    @Autowired
     @Qualifier("taskExecutor")
     private Executor taskExecutor;
 
@@ -86,7 +90,7 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
     }
 
     @Override
-    public SseEmitter handleStreamChat(Long sessionId, String content, String imageUrl, boolean isNewSession) {
+    public SseEmitter handleStreamChat(Long sessionId, String content, String imageUrl, boolean isNewSession, String sessionTitle) {
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
         final Long userId = UserContext.getUserId();
 
@@ -97,9 +101,12 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
 
         taskExecutor.execute(() -> {
             try {
-                // 如果是新会话，先发送 session-created 事件
+                // 如果是新会话，发送 session-created 事件（包含 ID 和标题）
                 if (isNewSession) {
-                    sendSseEvent(emitter, "session-created", sessionId.toString());
+                    JSONObject sessionEvent = new JSONObject();
+                    sessionEvent.put("id", sessionId);
+                    sessionEvent.put("title", sessionTitle != null ? sessionTitle : "新对话");
+                    sendSseEvent(emitter, "session-created", sessionEvent.toJSONString());
                 }
 
                 saveMessage(sessionId, ROLE_USER, content, imageUrl);
@@ -115,7 +122,7 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
                 }
 
                 List<JSONObject> messages = buildMessageHistory(sessionId, userId, finalPrompt, imageUrl, model);
-                executeStreamRequest(sessionId, model, messages, emitter);
+                executeStreamRequest(sessionId, model, messages, emitter, isNewSession, content);
 
             } catch (Exception e) {
                 log.error("流式对话异常", e);
@@ -126,7 +133,7 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
         return emitter;
     }
 
-    private void executeStreamRequest(Long sessionId, String model, List<JSONObject> messages, SseEmitter emitter) {
+    private void executeStreamRequest(Long sessionId, String model, List<JSONObject> messages, SseEmitter emitter, boolean isNewSession, String userContent) {
         StringBuilder fullResponse = new StringBuilder();
         try {
             JSONObject bodyJson = new JSONObject();
@@ -148,7 +155,7 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
                     String errorBody = response.body() != null ? response.body().string() : "Unknown Error";
                     log.error("智谱API请求失败: {}", errorBody);
                     sendSseEvent(emitter, "AI服务响应异常: " + response.code());
-                    return; // Early return on failure
+                    return;
                 }
 
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body().byteStream()))) {
@@ -179,11 +186,81 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
                 saveMessage(sessionId, ROLE_ASSISTANT, aiContent, null);
                 log.info("AI回复已保存，长度: {}", aiContent.length());
             }
+            // 新会话：AI 回复完成后，用 AI 生成标题
+            if (isNewSession && !aiContent.isEmpty()) {
+                generateAndSendTitle(emitter, sessionId, userContent);
+            }
         } catch (Exception e) {
             log.error("HTTP请求中断", e);
             emitter.completeWithError(e);
         } finally {
             emitter.complete();
+        }
+    }
+
+    /**
+     * 调用 AI 为会话生成简洁标题（15 字以内），更新数据库并通过 SSE 发送给前端
+     */
+    private void generateAndSendTitle(SseEmitter emitter, Long sessionId, String userContent) {
+        try {
+            // 用用户第一句话让 AI 总结标题
+            JSONObject titleBody = new JSONObject();
+            titleBody.put("model", DEFAULT_MODEL_TEXT);
+            titleBody.put("stream", false);
+            titleBody.put("messages", List.of(
+                    new JSONObject() {{
+                        put("role", "user");
+                        put("content", "用不超过15个字概括以下问题的主旨（只返回概括结果，不要解释，不要标点）：\n" + userContent);
+                    }}
+            ));
+            titleBody.put("temperature", 0.3);
+            titleBody.put("max_tokens", 50);
+
+            String token = generateToken(apiKey);
+            Request request = new Request.Builder()
+                    .url(ZHIPU_API_URL)
+                    .addHeader("Authorization", "Bearer " + token)
+                    .addHeader("Content-Type", "application/json")
+                    .post(RequestBody.create(titleBody.toJSONString(), MediaType.parse("application/json")))
+                    .build();
+
+            String aiTitle = null;
+            try (Response response = okHttpClient.newCall(request).execute()) {
+                if (response.isSuccessful() && response.body() != null) {
+                    JSONObject json = JSON.parseObject(response.body().string());
+                    String title = json.getJSONArray("choices")
+                            .getJSONObject(0).getJSONObject("message").getString("content");
+                    if (title != null) {
+                        aiTitle = title.trim();
+                        if (aiTitle.length() > 20) aiTitle = aiTitle.substring(0, 20) + "...";
+                    }
+                }
+            }
+
+            if (aiTitle != null) {
+                sessionService.updateTitle(sessionId, aiTitle);
+                log.info("准备发送session-title事件: title={}, sessionId={}", aiTitle, sessionId);
+                sendSseEvent(emitter, "session-title", aiTitle);
+                log.info("session-title事件已发送");
+            } else {
+                // AI 调用失败时的降级：截取用户消息
+                String fallbackTitle = userContent.replaceAll("https?://\\S+", "").trim();
+                if (fallbackTitle.length() > 15) fallbackTitle = fallbackTitle.substring(0, 15) + "...";
+                if (fallbackTitle.isEmpty()) fallbackTitle = "新对话";
+                sessionService.updateTitle(sessionId, fallbackTitle);
+                sendSseEvent(emitter, "session-title", fallbackTitle);
+                log.info("标题降级(截取): {}", fallbackTitle);
+            }
+        } catch (Exception e) {
+            log.warn("AI生成标题失败", e);
+            // 外层 catch 也确保发送降级标题
+            try {
+                String fallbackTitle = userContent.replaceAll("https?://\\S+", "").trim();
+                if (fallbackTitle.length() > 15) fallbackTitle = fallbackTitle.substring(0, 15) + "...";
+                if (fallbackTitle.isEmpty()) fallbackTitle = "新对话";
+                sessionService.updateTitle(sessionId, fallbackTitle);
+                sendSseEvent(emitter, "session-title", fallbackTitle);
+            } catch (Exception ignored) {}
         }
     }
 

@@ -30,8 +30,8 @@ mybatis-plus:
   global-config:
     db-config:
       logic-delete-field: isDeleted  # 对应实体类的属性名
-      logic-not-delete-value: 0      # 逻辑未删除值（数据库默认值）
-      logic-delete-value: 1          # 逻辑已删除值（取消点赞后的值）
+      logic-not-delete-value: 0      # 逻辑未删除值
+      logic-delete-value: 1          # 逻辑已删除值
 
 wx:
   miniapp:

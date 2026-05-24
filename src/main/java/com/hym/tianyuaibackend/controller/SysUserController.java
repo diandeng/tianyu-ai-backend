@@ -63,7 +63,7 @@ public class SysUserController {
             if ("test".equals(code)) {
                 openid = "o_TEST_OPENID_123456"; // 假的 OpenID
                 sessionKey = "TEST_SESSION_KEY";  // 假的 SessionKey
-                log.warn("⚠️ 注意：当前使用的是测试后门登录！");
+                log.warn("注意：当前使用的是测试后门登录！");
             } else {
                 // 获取 session 信息
                 WxMaJscode2SessionResult session = wxMaService.getUserService().getSessionInfo(code);
@@ -159,6 +159,25 @@ public class SysUserController {
             result.put("code", 500);
             result.put("msg", "修改失败");
         }
+        return result;
+    }
+
+    @PostMapping("/subscribe")
+    @Operation(summary = "订阅消息次数+1", description = "用户点击订阅消息后调用，每次订阅次数+1")
+    public Map<String, Object> subscribeIncrement() {
+        Map<String, Object> result = new HashMap<>();
+        Long userId = UserContext.getUserId();
+        SysUser user = sysUserService.getById(userId);
+        if (user == null) {
+            result.put("code", 401);
+            result.put("msg", "用户未登录");
+            return result;
+        }
+        user.setSubscribeCount(user.getSubscribeCount() + 1);
+        sysUserService.updateById(user);
+        result.put("code", 200);
+        result.put("msg", "订阅成功");
+        result.put("data", user.getSubscribeCount());
         return result;
     }
 
