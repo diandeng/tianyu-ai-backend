@@ -68,6 +68,22 @@ public class AdminUserController {
     }
 
     /**
+     * 获取已订阅用户列表（用于预警发送选择）
+     */
+    @GetMapping("/subscribed")
+    @Operation(summary = "获取已订阅用户列表")
+    public Map<String, Object> getSubscribedUsers() {
+        Map<String, Object> result = new HashMap<>();
+        LambdaQueryWrapper<SysUser> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.gt(SysUser::getSubscribeCount, 0)
+                .orderByDesc(SysUser::getSubscribeCount);
+        List<SysUser> users = sysUserService.list(queryWrapper);
+        result.put("code", 200);
+        result.put("data", users);
+        return result;
+    }
+
+    /**
      * 获取用户详情
      */
     @GetMapping("/detail/{id}")

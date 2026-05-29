@@ -414,10 +414,10 @@ public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage
             if (pyResp != null && pyResp.getCode() == 200 && pyResp.getData() != null) {
                 PythonAiResponse.DataDTO data = pyResp.getData();
                 if (data.getIsConfident()) {
-                    result.prompt = String.format("我的自动化设备检测到作物患有【%s】，置信度为 %.2f。请你作为植物病理学专家，做两件事：\n1. 将该病害名称准确翻译为中文。\n2. 给出详细的防治方案（包括物理防治和化学药剂推荐）。", data.getClassName(), data.getConfidence());
+                    result.prompt = String.format("我的自动化设备检测到作物患有【%s】，置信度为 %.2f。请你作为植物病理学专家，做三件事：\n1. 将该病害名称准确翻译为中文。\n2. 给出详细的防治方案（包括物理防治和化学药剂推荐）。\n3. 回答用户的其他问题。", data.getClassName(), data.getConfidence());
                     result.model = getModelText();
                 } else {
-                    result.prompt = "请仔细观察这张图片。我的初步检测模型不太确定，可能是健康或者某种病害。请你识别图中的作物状态，如果生病了，请给出治疗方案。";
+                    result.prompt = "请仔细观察这张图片。可能是植物相关的病虫害。如果是病虫害，请给出治疗方案。";
                     result.model = getModelVision();
                 }
             } else {
